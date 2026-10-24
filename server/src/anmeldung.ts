@@ -1,7 +1,7 @@
 import { Env, HttpFehler, gleich, json, leseJson, sha256Hex, zufallsCode } from "./hilfen";
 
 const COOKIE = "fb_sitzung";
-const SITZUNG_TAGE = 180;
+const SITZUNG_TAGE = 365; // Dauer-Login: angemeldet bleiben, bis abgemeldet wird (gleitend verlängert)
 const MAX_FEHLVERSUCHE = 10;
 const SPERRE_MS = 15 * 60_000;
 
@@ -65,6 +65,20 @@ export async function abmelden(req: Request, env: Env): Promise<Response> {
   const token = cookieLesen(req, COOKIE);
   if (token) await env.DB.prepare("DELETE FROM sitzungen WHERE id_hash = ?").bind(await sha256Hex(token)).run();
   return json({ ok: true }, 200, { "set-cookie": sitzungsCookie("", 0) });
+}
+
+/**
+ * Dauer-Login gleitend: gültige Admin-Sitzung wieder auf SITZUNG_TAGE stellen (höchstens 1x pro Tag).
+ * Liefert den neuen Cookie, wenn verlängert wurde, sonst null.
+ */
+export async function adminVerlaengern(req: Request, env: Env): Promise<string | null> {
+  const token = cookieLesen(req, COOKIE);
+  if (!token) return null;
+  const jetzt = Date.now();
+  const r = await env.DB.prepare("UPDATE sitzungen SET ablauf = ? WHERE id_hash = ? AND ablauf > ? AND ablauf < ?")
+    .bind(jetzt + SITZUNG_TAGE * 86_400_000, await sha256Hex(token), jetzt, jetzt + (SITZUNG_TAGE - 1) * 86_400_000)
+    .run();
+  return r.meta.changes ? sitzungsCookie(token, SITZUNG_TAGE * 86_400) : null;
 }
 
 /** Prüft die Admin-Sitzung; bei ändernden Anfragen zusätzlich einen eigenen Header gegen CSRF. */
