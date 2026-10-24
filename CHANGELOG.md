@@ -2,6 +2,12 @@
 
 Alle Änderungen am Fahrtenbuch (Android-App und Server). Versionen nach SemVer; App und Server tragen dieselbe Nummer.
 
+## [Unreleased] – Server live seit 2026-10-24
+
+### Geändert
+- Dauer-Login Admin: Anmeldung gilt 1 Jahr statt 180 Tage und wird bei jeder Nutzung des Admin-Bereichs
+  wieder auf 1 Jahr gestellt (höchstens 1x pro Tag). Abmelden wie bisher.
+
 ## [0.7.2] – 2026-09-29
 
 ### Behoben

@@ -1,5 +1,5 @@
 import { admin } from "./admin";
-import { abmelden, anmelden } from "./anmeldung";
+import { abmelden, adminVerlaengern, anmelden } from "./anmeldung";
 import { adresse, koordinaten, route } from "./geo";
 import { Env, HttpFehler, json } from "./hilfen";
 import { ich, sync } from "./sync";
@@ -13,7 +13,14 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (p === "/api/v1/route" && req.method === "POST") return route(req, env);
   if (p === "/api/admin/anmelden" && req.method === "POST") return anmelden(req, env);
   if (p === "/api/admin/abmelden" && req.method === "POST") return abmelden(req, env);
-  if (p.startsWith("/api/admin/")) return admin(req, env, url);
+  if (p.startsWith("/api/admin/")) {
+    const antwort = await admin(req, env, url); // wirft bei fehlender Anmeldung
+    const cookie = await adminVerlaengern(req, env);
+    if (!cookie || antwort.headers.has("set-cookie")) return antwort;
+    const neu = new Response(antwort.body, antwort);
+    neu.headers.append("set-cookie", cookie);
+    return neu;
+  }
   throw new HttpFehler(404, "Unbekannte Anfrage");
 }
 
