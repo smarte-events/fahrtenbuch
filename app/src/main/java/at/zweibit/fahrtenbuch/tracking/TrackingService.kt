@@ -34,6 +34,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.Job
+import at.zweibit.fahrtenbuch.util.Format
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
@@ -560,20 +561,34 @@ class TrackingService : LifecycleService() {
      * nachgerechnet und die Abfahrt um die Fahrzeit vorverlegt. Ein früherer Nachtrag wird ersetzt.
      */
     private suspend fun startKorrigieren(adresse: String) {
-        if (adresse.isBlank() || !wiederherstellen()) return
-        val f = mutex.withLock { fahrt?.let { repo.fahrt(it.id) } } ?: return
-        if (f.status != FahrtStatus.LAUFEND) return
-        LiveStatus.zustand.update { it.copy(nachtrag = NachtragStand("Kilometer ab dem neuen Start werden berechnet …")) }
+        fun melden(text: String, fehler: Boolean) =
+            LiveStatus.zustand.update { it.copy(nachtrag = NachtragStand(text, fehler)) }
+        if (adresse.isBlank()) return
+        if (!wiederherstellen()) return melden("Kilometer nicht ergänzt: keine laufende Fahrt gefunden.", true)
+        val f = mutex.withLock { fahrt?.let { repo.fahrt(it.id) } }
+            ?: return melden("Kilometer nicht ergänzt: keine laufende Fahrt gefunden.", true)
+        if (f.status != FahrtStatus.LAUFEND) return melden("Kilometer nicht ergänzt: Die Fahrt ist nicht mehr aktiv.", true)
+        melden("Kilometer ab dem neuen Start werden berechnet …", false)
         val ergebnis = StartKorrektur.berechnen(app, f, adresse)
+        var erfolgMeldung = false
         mutex.withLock {
             val db = repo.fahrt(f.id)
             // Inzwischen erneut korrigiert: Dann zählt die neuere Korrektur
-            if (db == null || db.startAdresse.trim() != adresse.trim()) return@withLock
+            if (db == null || db.startAdresse.trim() != adresse.trim()) {
+                if (db != null) melden("Kilometer nicht ergänzt: Die Startadresse wurde inzwischen erneut geändert.", true)
+                return@withLock
+            }
             if (ergebnis is NachtragErgebnis.Fehler) {
-                LiveStatus.zustand.update { it.copy(nachtrag = NachtragStand("Kilometer nicht ergänzt: ${ergebnis.text}", fehler = true)) }
+                melden("Kilometer nicht ergänzt: ${ergebnis.text}", true)
                 return@withLock
             }
             val n = (ergebnis as NachtragErgebnis.Ok).nachtrag
+            erfolgMeldung = true
+            melden(
+                if (n.meter > 0) "Ergänzt: ${Format.km(n.meter)} vom neuen Start bis zum Beginn der Aufzeichnung."
+                else "Keine Kilometer ergänzt: Der neue Start liegt weniger als ${StartKorrektur.MIN_ABSTAND_M.toInt()} m vom Beginn der Aufzeichnung.",
+                false,
+            )
             val r = rechner
             val m = fahrt
             when {
@@ -591,9 +606,14 @@ class TrackingService : LifecycleService() {
                 db.status == FahrtStatus.OFFEN -> repo.nachtragSetzen(StartKorrektur.anwenden(db, n))
                 db.status == FahrtStatus.FERTIG -> repo.fahrtSpeichern(StartKorrektur.anwenden(db, n))
             }
-            LiveStatus.zustand.update { it.copy(nachtrag = null) }
         }
         benachrichtigungAktualisieren()
+        if (erfolgMeldung) {
+            // Ergebnis eine Weile sichtbar lassen; eine neuere Meldung (erneute Korrektur) bleibt stehen
+            val gemeldet = LiveStatus.zustand.value.nachtrag
+            delay(20_000)
+            LiveStatus.zustand.update { if (it.nachtrag === gemeldet) it.copy(nachtrag = null) else it }
+        }
     }
 
     @SuppressLint("MissingPermission")
