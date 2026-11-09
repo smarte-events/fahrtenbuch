@@ -2,7 +2,12 @@
 
 Alle Änderungen am Fahrtenbuch (Android-App und Server). Versionen nach SemVer; App und Server tragen dieselbe Nummer.
 
-## [Unreleased] – Server live seit 2026-10-24
+## [0.7.3] – 2026-11-09
+
+### Behoben
+- Startort einer fertigen Fahrt nachträglich geändert (Fahrt bearbeiten): Die fehlenden Kilometer bis zum Beginn der
+  Aufzeichnung werden jetzt über die Straße nachgerechnet und die Abfahrt vorverlegt, wie beim Korrigieren während der
+  Fahrt. Von Hand geänderte Kilometer oder Abfahrt bleiben unverändert. Android-App und iPhone-Web-App.
 
 ### Geändert
 - Dauer-Login Admin: Anmeldung gilt 1 Jahr statt 180 Tage und wird bei jeder Nutzung des Admin-Bereichs

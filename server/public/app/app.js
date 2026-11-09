@@ -675,9 +675,20 @@ async function bearbeitenSeite(uuid) {
       notiz: notiz.value.trim(),
       status: "fertig",
     };
+    // Start nachträglich geändert (km und Abfahrt nicht von Hand): fehlende Strecke über die Route nachrechnen
+    let hinweis = "";
+    if (
+      original && f.startAdresse && f.startAdresse !== (original.startAdresse ?? "").trim() &&
+      meter === original.distanzMeter && nachtrag.nachtragMs === (original.nachtragMs ?? 0) &&
+      Math.floor(start / 60_000) === Math.floor(original.startZeit / 60_000)
+    ) {
+      const e = await A.nachtragBerechnen(f, f.startAdresse);
+      if (e.nachtrag) Object.assign(f, nachtragAnwenden(f, e.nachtrag));
+      else hinweis = ` Kilometer ab dem neuen Start nicht ergänzt: ${e.fehler}`;
+    }
     await db.fahrtSpeichern(f);
     S.bald();
-    melde("Gespeichert.");
+    melde("Gespeichert." + hinweis);
     history.length > 1 ? history.back() : (location.hash = "#/fahrten");
   }
 

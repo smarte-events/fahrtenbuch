@@ -47,7 +47,10 @@ import at.zweibit.fahrtenbuch.FahrtenbuchApp
 import at.zweibit.fahrtenbuch.data.Fahrt
 import at.zweibit.fahrtenbuch.data.FahrtStatus
 import at.zweibit.fahrtenbuch.data.Kategorie
+import android.widget.Toast
 import at.zweibit.fahrtenbuch.tracking.Benachrichtigungen
+import at.zweibit.fahrtenbuch.tracking.NachtragErgebnis
+import at.zweibit.fahrtenbuch.tracking.StartKorrektur
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.mutableStateListOf
@@ -82,8 +85,17 @@ class BearbeitenViewModel(application: Application) : AndroidViewModel(applicati
 
     suspend fun laden(id: Long): Fahrt? = repo.fahrt(id)
 
-    fun speichern(fahrt: Fahrt, fertig: () -> Unit) = viewModelScope.launch {
-        if (fahrt.id == 0L) repo.fahrtAnlegen(fahrt) else repo.fahrtSpeichern(fahrt)
+    /** @param startNachrechnen Startadresse nachträglich geändert (km/Abfahrt nicht von Hand): fehlende Strecke ergänzen */
+    fun speichern(fahrt: Fahrt, startNachrechnen: Boolean = false, fertig: () -> Unit) = viewModelScope.launch {
+        var zuSpeichern = fahrt
+        if (startNachrechnen) {
+            when (val e = StartKorrektur.berechnen(app, fahrt, fahrt.startAdresse)) {
+                is NachtragErgebnis.Ok -> zuSpeichern = StartKorrektur.anwenden(fahrt, e.nachtrag)
+                is NachtragErgebnis.Fehler ->
+                    Toast.makeText(app, "Kilometer ab dem neuen Start nicht ergänzt: ${e.text}", Toast.LENGTH_LONG).show()
+            }
+        }
+        if (zuSpeichern.id == 0L) repo.fahrtAnlegen(zuSpeichern) else repo.fahrtSpeichern(zuSpeichern)
         if (fahrt.status == FahrtStatus.FERTIG && fahrt.id != 0L) Benachrichtigungen.beendetEntfernen(app, fahrt.id)
         fertig()
     }
@@ -164,7 +176,10 @@ fun FahrtBearbeitenScreen(fahrtId: Long, zurueck: () -> Unit, vm: BearbeitenView
                 notiz = notiz.trim(),
                 status = FahrtStatus.FERTIG,
             ),
-            zurueck,
+            // Start geändert, km und Abfahrt aber nicht von Hand: fehlende Strecke über die Route nachrechnen
+            startNachrechnen = original != null && kmGleich && abfahrtGleich &&
+                von.trim() != basis.startAdresse.trim() && von.isNotBlank(),
+            fertig = zurueck,
         )
     }
 
