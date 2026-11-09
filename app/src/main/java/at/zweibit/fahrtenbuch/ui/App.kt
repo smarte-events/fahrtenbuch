@@ -44,6 +44,7 @@ import at.zweibit.fahrtenbuch.ui.fahrt.FahrtScreen
 import at.zweibit.fahrtenbuch.ui.fahrt.KategorieDialog
 import at.zweibit.fahrtenbuch.ui.fahrten.FahrtBearbeitenScreen
 import at.zweibit.fahrtenbuch.ui.fahrten.FahrtenScreen
+import at.zweibit.fahrtenbuch.ui.planer.PlanenScreen
 
 private data class Ziel(val route: String, val titel: String, val icon: ImageVector)
 
@@ -117,7 +118,8 @@ fun AppOberflaeche(
                 .consumeWindowInsets(innen)
                 .imePadding(),
         ) {
-            composable("fahrt") { FahrtScreen(haupt, zuordnen = haupt::anfordern) }
+            composable("fahrt") { FahrtScreen(haupt, zuordnen = haupt::anfordern, planen = { nav.navigate("planen") }) }
+            composable("planen") { PlanenScreen(haupt, zurueck = { nav.popBackStack() }) }
             composable("fahrten") {
                 FahrtenScreen(
                     oeffnen = { id -> nav.navigate("bearbeiten/$id") },

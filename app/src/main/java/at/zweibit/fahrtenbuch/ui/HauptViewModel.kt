@@ -69,8 +69,9 @@ class HauptViewModel(application: Application) : AndroidViewModel(application) {
             .sortedByDescending { it.meter }
     }.halten(emptyList())
 
-    fun starten() {
-        TrackingService.starten(app, startOrt.value?.alsAdresse)
+    /** @param startAdresse Start aus der Routenplanung; sonst der gewählte Ort bzw. der aktuelle Standort (GPS) */
+    fun starten(startAdresse: String? = null) {
+        TrackingService.starten(app, startAdresse ?: startOrt.value?.alsAdresse)
         startOrt.value = null
     }
 

@@ -140,7 +140,7 @@ private fun erlaubt(context: Context, recht: String) =
     ContextCompat.checkSelfPermission(context, recht) == PackageManager.PERMISSION_GRANTED
 
 @Composable
-fun FahrtScreen(vm: HauptViewModel, zuordnen: (Long) -> Unit) {
+fun FahrtScreen(vm: HauptViewModel, zuordnen: (Long) -> Unit, planen: () -> Unit = {}) {
     val context = LocalContext.current
     val laufend by vm.laufend.collectAsStateWithLifecycle()
     val offene by vm.offene.collectAsStateWithLifecycle()
@@ -382,6 +382,7 @@ fun FahrtScreen(vm: HauptViewModel, zuordnen: (Long) -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text("Fahrt starten", fontSize = 24.sp)
             }
+            OutlinedButton(onClick = planen, modifier = Modifier.fillMaxWidth()) { Text("Route planen (Google Maps)") }
             Text(
                 if (startOrt == null) "Die Startadresse wird per GPS erfasst, gespeicherte Orte werden erkannt. " +
                     "Am Ziel fragt die App, wie die Fahrt gespeichert werden soll."

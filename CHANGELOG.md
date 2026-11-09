@@ -2,6 +2,18 @@
 
 Alle Änderungen am Fahrtenbuch (Android-App und Server). Versionen nach SemVer; App und Server tragen dieselbe Nummer.
 
+## [0.8.0] – 2026-11-09
+
+### Neu
+- **Route planen** (Android-App und iPhone-Web-App): Von, Zwischenziele und Ziel eingeben, Strecke und Fahrzeit
+  schätzen (ca., ohne Verkehr; braucht die Online-Sicherung) und die Route in **Google Maps** öffnen. Maps
+  übernimmt die Navigation, das Fahrtenbuch bekommt dafür keine Daten von Google.
+- Android-App: „Fahrt aufzeichnen und Google Maps öffnen“ startet die Aufzeichnung mit dem geplanten Start und
+  öffnet gleichzeitig die Route in Maps.
+- Die normale Aufzeichnung bleibt unverändert: „Fahrt starten“ zeichnet auch ohne Planung auf. Der Planer ist ein
+  zusätzlicher Knopf unter „Fahrt starten“.
+- iPhone-Web-App: kein „Aufzeichnen und Maps öffnen“, weil das iPhone nur bei geöffneter App aufzeichnet.
+
 ## [0.7.3] – 2026-11-09
 
 ### Behoben
