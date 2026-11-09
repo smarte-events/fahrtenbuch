@@ -7,6 +7,7 @@ import * as F from "./format.js";
 import { MIN_PIN } from "./krypto.js";
 import { alsAdresse, adresseFehlt, streckeText, zwischenzieleLesen, zwischenzieleSchreiben } from "./orte.js";
 import * as S from "./sicherung.js";
+import { abschnitte, mapsLink } from "./planer.js";
 import { nachtragAnwenden } from "./strecke.js";
 import { verbindungLesen } from "./syncformat.js";
 
@@ -188,6 +189,11 @@ async function route() {
       navigation("#/fahrten");
       return await bearbeitenSeite(decodeURIComponent(m[1]));
     }
+    if (h === "#/planen") {
+      aktuelleSeite = "planen";
+      navigation("#/");
+      return await planenSeite();
+    }
     if (h === "#/fahrten") {
       aktuelleSeite = "fahrten";
       navigation(h);
@@ -303,6 +309,7 @@ function startBereich(orte) {
       },
       "▶  Fahrt starten",
     ),
+    el("a", { class: "knopf breit", href: "#/planen" }, "Route planen (Google Maps)"),
     el("p", { class: "klein" }, "Die Startadresse wird per GPS erfasst, gespeicherte Orte werden erkannt. Am Ziel fragt die App, wie die Fahrt gespeichert werden soll."),
   ];
 }
@@ -589,6 +596,101 @@ function fahrtZeile(f, k) {
       el("small", { class: offen ? "fehler" : "klein" }, offen ? "Nicht zugeordnet – antippen" : (k?.name ?? "Ohne Kategorie") + (f.notiz ? ` · ${f.notiz}` : "")),
     ),
     el("strong", { class: "rechts" }, F.km(f.distanzMeter)),
+  );
+}
+
+// ------------------------------------------------------------------ Route planen (Google Maps)
+
+/**
+ * Strecke und Fahrzeit schätzen und die Route in Google Maps öffnen. Die Aufzeichnung läuft wie immer über
+ * „Fahrt starten“ – die Planung ist optional. (Das iPhone zeichnet nur bei geöffneter App auf, deshalb gibt es
+ * hier keinen Knopf „Aufzeichnen und Maps öffnen“ wie in der Android-App.)
+ */
+async function planenSeite() {
+  const orte = await db.wert("orte", []);
+  const von = adressFeld("", "Von (leer = aktueller Standort)", orte);
+  const nach = adressFeld("", "Nach", orte);
+  const zwischen = [];
+  const $zwischen = el("div", {});
+  const $ergebnis = el("p", { class: "klein" });
+  const werte = () => [von.eingabe.value, zwischen.map((x) => x.eingabe.value), nach.eingabe.value];
+
+  function zwischenZeigen() {
+    $zwischen.replaceChildren(
+      ...zwischen.map((x, i) =>
+        el(
+          "div",
+          { class: "zwischen" },
+          el("span", { class: "klein" }, `Über (Zwischenziel ${i + 1})`),
+          el("div", { class: "reihe" }, x.eingabe, el("button", { type: "button", class: "text", "aria-label": "Zwischenziel entfernen", onclick: () => (zwischen.splice(i, 1), zwischenZeigen()) }, "✕")),
+          x.knoten.querySelector("datalist"),
+        ),
+      ),
+      el("button", { type: "button", class: "text", onclick: () => (zwischen.push(adressFeld("", "", orte)), zwischenZeigen()) }, "+ Zwischenziel hinzufügen"),
+    );
+  }
+  zwischenZeigen();
+
+  const ortKoordinaten = (text) => {
+    const o = orte.find((x) => typeof x.lat === "number" && typeof x.lon === "number" && alsAdresse(x).toLowerCase() === text.toLowerCase());
+    return o ? { lat: o.lat, lon: o.lon } : null;
+  };
+  const koordinaten = async (text) => ortKoordinaten(text) ?? (await S.koordinatenSuchen(text));
+
+  async function schaetzen(knopf) {
+    const [v, ueber, n] = werte();
+    if (!n.trim()) return ($ergebnis.textContent = "Bitte ein Ziel eingeben.");
+    const teile = abschnitte(v, ueber, n);
+    if (teile.some(([a]) => a === null)) return ($ergebnis.textContent = "Für die Schätzung bitte einen Start eingeben.");
+    if (!(await S.verbindung())?.code) return ($ergebnis.textContent = "Dafür muss die Web-App mit der Online-Sicherung verbunden sein (Einstellungen).");
+    knopf.disabled = true;
+    $ergebnis.textContent = "Wird berechnet …";
+    try {
+      let meter = 0;
+      let sekunden = 0;
+      for (const [a, b] of teile) {
+        const p = await koordinaten(a);
+        const q = await koordinaten(b);
+        if (!p || !q) return ($ergebnis.textContent = `Adresse nicht gefunden: ${!p ? a : b}. Bitte mit Postleitzahl und Ort eingeben.`);
+        const r = await S.routeErmitteln(p, q);
+        if (!r) return ($ergebnis.textContent = navigator.onLine === false ? "Keine Internetverbindung." : "Keine Straßenverbindung gefunden.");
+        meter += r.meter;
+        sekunden += r.sekunden;
+      }
+      const min = Math.round(sekunden / 60);
+      const dauer = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
+      $ergebnis.textContent = `ca. ${F.km(meter)} · ca. ${dauer} (ohne Verkehr)`;
+    } finally {
+      knopf.disabled = false;
+    }
+  }
+
+  const schaetzKnopf = el("button", { type: "button", class: "knopf breit", onclick: (e) => schaetzen(e.currentTarget) }, "Strecke und Fahrzeit schätzen");
+  const mapsKnopf = el(
+    "button",
+    {
+      type: "button",
+      class: "knopf haupt breit",
+      onclick: () => {
+        const [v, ueber, n] = werte();
+        const link = mapsLink(v, ueber, n);
+        if (!link) return melde("Bitte ein Ziel eingeben.", true);
+        window.open(link, "_blank", "noopener");
+      },
+    },
+    "In Google Maps öffnen",
+  );
+  zeige(
+    el("div", { class: "seitenkopf" }, el("a", { class: "text", href: "#/" }, "‹ Fahrt"), el("h1", {}, "Route planen")),
+    karte(
+      von.knoten,
+      $zwischen,
+      nach.knoten,
+      schaetzKnopf,
+      $ergebnis,
+      mapsKnopf,
+      el("p", { class: "klein" }, "Die Navigation übernimmt Google Maps. Aufgezeichnet wird weiterhin mit „Fahrt starten“ – auch ohne Planung."),
+    ),
   );
 }
 
