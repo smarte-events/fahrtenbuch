@@ -2,6 +2,13 @@
 
 Alle Änderungen am Fahrtenbuch (Android-App und Server). Versionen nach SemVer; App und Server tragen dieselbe Nummer.
 
+## [0.8.1] – 2026-11-09
+
+### Geändert
+- Startadresse bei **laufender Fahrt** ändern: Die App meldet jetzt immer, was daraus wurde – „Ergänzt: X km …“,
+  der Grund, warum nichts ergänzt wurde (z. B. Start näher als 250 m, keine laufende Fahrt, Adresse inzwischen
+  erneut geändert) oder die Fehlermeldung. Bisher blieb in manchen Fällen jede Rückmeldung aus.
+
 ## [0.8.0] – 2026-11-09
 
 ### Neu
